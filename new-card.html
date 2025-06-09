@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Card - Memo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+    <link rel="stylesheet" href="./new-card.css">
+</head>
+<body>
+    <!-- New Card Page -->
+    <div class="new-card-page">
+        <div class="header">
+            <div class="menu-icon" onclick="toggleSidebar()"><i class="fas fa-bars"></i></div>
+            <div class="account-menu">
+                <div class="account-icon"><i class="fas fa-user-circle"></i></div>
+                <div class="account-dropdown" id="accountDropdown">
+                    <div class="account-header">
+                        <div class="account-avatar" id="accountAvatar">?</div>
+                        <div class="account-info">
+                            <div class="account-name" id="accountName">Guest</div>
+                            <div class="account-email" id="accountEmail">Not logged in</div>
+                        </div>
+                    </div>
+                    <div class="account-dropdown-menu">
+                        <div class="account-dropdown-item" onclick="goToPage('settings.html')">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </div>
+                        <div class="account-dropdown-item" id="logoutButton">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content">
+            <h1 class="page-title">Create New Deck</h1>
+            
+            <div class="deck-info">
+                <div class="section-label">
+                    <i class="fas fa-layer-group"></i> Deck Name
+                </div>
+                <input type="text" id="deckName" class="deck-name" placeholder="Enter deck name" value="New Deck">
+            </div>
+            
+            <div class="card-counter">Card 1</div>
+            
+            <!-- Front Side -->
+            <div class="card-section">
+                <div class="section-label">
+                    <i class="fas fa-arrow-circle-up"></i> Front Side
+                </div>
+                <textarea id="frontText" class="card-input" placeholder="Enter term, question, or front side content (Shift+Enter for new line)"></textarea>
+            </div>
+            
+            <!-- Back Side -->
+            <div class="card-section">
+                <div class="section-label">
+                    <i class="fas fa-arrow-circle-down"></i> Back Side
+                </div>
+                <textarea id="backText" class="card-input" placeholder="Enter definition, answer, or back side content (Shift+Enter for new line, Enter to save)"></textarea>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="buttons-container">
+                <div class="navigation-buttons">
+                    <button class="action-button previous" onclick="previousCard()">
+                        <i class="fas fa-arrow-left"></i> Previous
+                    </button>
+                    <button class="action-button next" onclick="nextCard()">
+                        <i class="fas fa-arrow-right"></i> Next
+                    </button>
+                    <button class="action-button previous" onclick="finishDeck()">
+                        <i class="fas fa-check"></i> Finish
+                    </button>
+                </div>
+                <button class="action-button" onclick="addNewCard()">
+                    <i class="fas fa-plus"></i> Add Card
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Success Message -->
+    <div id="successMessage" class="success-message">
+        Card added successfully!
+    </div>
+    <!-- Error Message -->
+    <div id="errorMessage" class="error-message">
+        Error message will appear here
+    </div>
+    
+    <!-- Sidebar and Overlay -->
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Memo</h3>
+            <div class="sidebar-close" onclick="toggleSidebar()"><i class="fas fa-times"></i></div>
+        </div>
+        <div class="sidebar-menu">
+            <div class="sidebar-item" onclick="goToPage('index.html')">
+                <i class="fas fa-home"></i> Home
+            </div>
+            <div class="sidebar-item" onclick="goToPage('new-card.html')">
+                <i class="fas fa-plus"></i> New Deck
+            </div>
+            <div class="sidebar-item" onclick="goToPage('my-decks.html')">
+                <i class="fas fa-layer-group"></i> My Decks
+            </div>
+            <div class="sidebar-item" onclick="goToPage('about.html')">
+                <i class="fas fa-info-circle"></i> About
+            </div>
+            <div class="sidebar-item" onclick="goToPage('settings.html')">
+                <i class="fas fa-cog"></i> Settings
+            </div>
+            <div class="sidebar-item" onclick="goToPage('account.html')">
+                <i class="fas fa-history"></i> Practice History
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth-check.js"></script>
+    <script src="theme-loader.js"></script>
+    <script>
+
+        // Current deck data
+        let currentDeckId = 'deck-' + Date.now();
+        let currentCard = 1;
+        let editMode = false;
+        let totalCards = 0;
+        let currentUser = null;
+
+        // Initialize app
+        window.onload = function() {
+            // Mevcut kullanıcıyı al
+            checkAuthState().then(userData => {
+                if (!userData) {
+                    // Kimlik doğrulaması yapılmamışsa login sayfasına yönlendir
+                    sessionStorage.setItem('intendedDestination', window.location.href);
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                currentUser = userData;
+                
+                // Kullanıcı ID'si ile yeni bir deste kur
+                currentDeck = {
+                    id: currentDeckId,
+                    userId: currentUser.id,
+                    name: "New Deck",
+                    createdAt: new Date().toISOString(),
+                    cards: []
+                };
+                
+                // URL parametrelerinden düzenleme modunu kontrol et
+                const urlParams = new URLSearchParams(window.location.search);
+                const editDeckId = urlParams.get('deck');
+                
+                if (editDeckId) {
+                    // Var olan desteyi düzenle
+                    loadExistingDeck(editDeckId);
+                } else {
+                    // Yeni deste için gezinme düğmelerini güncelle
+                    updateNavigationButtons();
+                }
+                
+                // Enter tuşu için klavye kısayollarını ayarla
+                setupKeyboardShortcuts();
+                
+                // Kullanıcı hesap bilgilerini güncelle
+                updateAccountDisplay();
+            });
+        };
+
+        function loadExistingDeck(deckId) {
+            // Önce Firestore'dan yüklemeyi dene
+            if (firebase.firestore) {
+                firebase.firestore().collection('decks').doc(deckId).get()
+                    .then(docSnapshot => {
+                        if (docSnapshot.exists) {
+                            handleExistingDeckData(docSnapshot.data());
+                        } else {
+                            // Firestore'da yoksa localStorage'a fallback
+                            console.log("Deck not found in Firestore, checking localStorage");
+                            fallbackToLocalStorage(deckId);
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error loading deck from Firestore:", error);
+                        fallbackToLocalStorage(deckId);
+                    });
+            } else {
+                // Firestore yoksa localStorage'dan yükle
+                fallbackToLocalStorage(deckId);
+            }
+        }
+
+        // Var olan deste verilerini işle
+        function handleExistingDeckData(deckToEdit) {
+            // Destenin mevcut kullanıcıya ait olup olmadığını doğrula
+            if (deckToEdit.userId !== currentUser.id) {
+                showErrorMessage('You do not have permission to edit this deck.');
+                setTimeout(() => {
+                    goToPage('my-decks.html');
+                }, 1500);
+                return;
+            }
+            
+            // Düzenleme modunu ve deste bilgilerini ayarla
+            editMode = true;
+            currentDeckId = deckToEdit.id;
+            currentDeck = deckToEdit;
+            document.querySelector('#deckName').value = deckToEdit.name;
+            document.querySelector('.page-title').textContent = "Edit Deck";
+            
+            // Destenin kartları varsa, son kartı yükle
+            if (deckToEdit.cards && deckToEdit.cards.length > 0) {
+                totalCards = deckToEdit.cards.length;
+                currentCard = totalCards; // Başlangıçta son kartı göster
+                updateCardCounter();
+                loadCard(currentCard - 1);
+            }
+            
+            // İleri ve geri düğmelerinin görünürlüğünü ayarla
+            updateNavigationButtons();
+        }
+        
+        // Fallback to localStorage if Firestore fails
+        function fallbackToLocalStorage(deckId) {
+            const decks = JSON.parse(localStorage.getItem('memo-decks')) || [];
+            const deckToEdit = decks.find(deck => deck.id === deckId);
+            
+            if (deckToEdit) {
+                editMode = true;
+                currentDeckId = deckToEdit.id;
+                currentDeck = deckToEdit;
+                document.querySelector('#deckName').value = deckToEdit.name;
+                document.querySelector('.page-title').textContent = "Edit Deck";
+                
+                // If the deck has cards, load the last one
+                if (deckToEdit.cards.length > 0) {
+                    totalCards = deckToEdit.cards.length;
+                    currentCard = totalCards; // Başlangıçta son kartı göster
+                    updateCardCounter();
+                    loadCard(currentCard - 1);
+                }
+            } else {
+                showErrorMessage('Deck not found.');
+                setTimeout(() => {
+                    goToPage('my-decks.html');
+                }, 1500);
+            }
+            
+            // İleri ve geri butonlarının görünürlüğünü ayarla
+            updateNavigationButtons();
+        }
+
+        // Enter tuşu işlevselliğini ekleyen fonksiyon
+        function setupKeyboardShortcuts() {
+            // Ön yüz ve arka yüz giriş alanlarını seçin
+            const frontTextarea = document.getElementById('frontText');
+            const backTextarea = document.getElementById('backText');
+            
+            // Ön yüz metin alanına Enter olayı ekle
+            frontTextarea.addEventListener('keydown', function(e) {
+                // Shift+Enter tuşuna basıldığında normal davranış (yeni satır)
+                if (e.key === 'Enter' && e.shiftKey) {
+                    return; // Varsayılan davranışı engelleme, yeni satıra izin ver
+                }
+                
+                // Sadece Enter tuşuna basıldığında
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Varsayılan davranışı (yeni satır) engelle
+                    // Odağı arka yüz alanına taşı
+                    backTextarea.focus();
+                }
+            });
+            
+            // Arka yüz metin alanına Enter olayı ekle
+            backTextarea.addEventListener('keydown', function(e) {
+                // Shift+Enter tuşuna basıldığında normal davranış (yeni satır)
+                if (e.key === 'Enter' && e.shiftKey) {
+                    return; // Varsayılan davranışı engelleme, yeni satıra izin ver
+                }
+                
+                // Sadece Enter tuşuna basıldığında
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Varsayılan davranışı (yeni satır) engelle
+                    
+                    // Hem ön yüz hem de arka yüz dolu mu kontrol et
+                    const frontSide = frontTextarea.value.trim();
+                    const backSide = backTextarea.value.trim();
+                    
+                    if (frontSide !== '' && backSide !== '') {
+                        // Kart ekle/kaydet fonksiyonunu çağır
+                        addNewCard();
+                        
+                        // İşlem tamamlandıktan sonra odağı ön yüz alanına taşı
+                        setTimeout(() => {
+                            frontTextarea.focus();
+                        }, 100);
+                    } else {
+                        // Boş alan varsa hata mesajı göster
+                        showErrorMessage('Please fill in both sides of the card');
+                    }
+                }
+            });
+        }
+
+        // İleri ve geri butonlarının görünürlüğünü güncelle
+        function updateNavigationButtons() {
+            const previousButton = document.querySelector('.action-button.previous');
+            const nextButton = document.querySelector('.action-button.next');
+            
+            if (!previousButton || !nextButton) return;
+            
+            // Eğer ilk kartsa, geri butonunu devre dışı bırak
+            if (currentCard <= 1) {
+                previousButton.disabled = true;
+                previousButton.style.opacity = '0.5';
+                previousButton.style.cursor = 'not-allowed';
+            } else {
+                previousButton.disabled = false;
+                previousButton.style.opacity = '1';
+                previousButton.style.cursor = 'pointer';
+            }
+            
+            // Eğer son kartsa, ileri butonunu devre dışı bırak
+            if (currentCard >= totalCards) {
+                nextButton.disabled = true;
+                nextButton.style.opacity = '0.5';
+                nextButton.style.cursor = 'not-allowed';
+            } else {
+                nextButton.disabled = false;
+                nextButton.style.opacity = '1';
+                nextButton.style.cursor = 'pointer';
+            }
+        }
+
+        // Function to update card counter display
+        function updateCardCounter() {
+            if (editMode || totalCards > 0) {
+                document.querySelector('.card-counter').textContent = `Card ${currentCard} of ${totalCards}`;
+            } else {
+                document.querySelector('.card-counter').textContent = `Card ${currentCard}`;
+            }
+        }
+
+        // Function to load a card into the form
+        function loadCard(index) {
+            if (index >= 0 && index < currentDeck.cards.length) {
+                const card = currentDeck.cards[index];
+                document.querySelector('#frontText').value = card.front;
+                document.querySelector('#backText').value = card.back;
+            } else {
+                // Clear the form if index is out of bounds
+                document.querySelector('#frontText').value = '';
+                document.querySelector('#backText').value = '';
+            }
+        }
+
+        // Function to toggle sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.toggle('active');
+            
+            if (sidebar.classList.contains('active')) {
+                overlay.style.display = 'block';
+                // Add small delay for smooth transition
+                setTimeout(() => {
+                    overlay.style.opacity = '1';
+                }, 10);
+            } else {
+                overlay.style.opacity = '0';
+                // Add small delay for smooth transition
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                }, 300);
+            }
+        }
+
+        // Function to navigate to another page
+        function goToPage(url) {
+            window.location.href = url;
+        }
+
+        // Function to show success message
+        function showSuccessMessage(message) {
+            const successMessage = document.getElementById('successMessage');
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 2000);
+        }
+
+        // Function to show error message
+        function showErrorMessage(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            errorMessage.style.opacity = '1';
+            errorMessage.style.animation = 'none';
+            
+            // Reset animation
+            setTimeout(() => {
+                errorMessage.style.animation = 'fadeOut 5s forwards';
+            }, 10);
+            
+            // Hide after animation
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // Function to navigate to previous card
+        function previousCard() {
+            if (currentCard > 1) {
+                // Save current card content if it has data
+                saveCurrentCardIfNotEmpty();
+                
+                currentCard--;
+                updateCardCounter();
+                loadCard(currentCard - 1);
+                updateNavigationButtons();
+            } else {
+                showErrorMessage('This is the first card');
+            }
+        }
+
+        // Function to navigate to next card
+        function nextCard() {
+            if (currentCard < totalCards) {
+                // Save current card content if it has data
+                saveCurrentCardIfNotEmpty();
+                
+                currentCard++;
+                updateCardCounter();
+                loadCard(currentCard - 1);
+                updateNavigationButtons();
+            } else {
+                showErrorMessage('This is the last card');
+            }
+        }
+
+        // Helper function to save current card if not empty
+        function saveCurrentCardIfNotEmpty() {
+            const frontSide = document.querySelector('#frontText').value;
+            const backSide = document.querySelector('#backText').value;
+            
+            if (frontSide.trim() !== '' && backSide.trim() !== '') {
+                // Mevcut kart içeriği varsa, geçmeden önce kaydet
+                saveCurrentCard();
+            }
+        }
+
+        // Function to save current deck to Firestore and localStorage
+        function saveDeckToStorage() {
+            if (!currentUser) {
+                showErrorMessage('User not authenticated. Please login again.');
+                setTimeout(() => {
+                    goToPage('login.html');
+                }, 1500);
+                return;
+            }
+            
+            // Deste adını giriş alanından al
+            currentDeck.name = document.querySelector('#deckName').value || "New Deck";
+            currentDeck.updatedAt = new Date().toISOString();
+            
+            // Global saveDeck fonksiyonunu kullanarak kaydet
+            saveDeck(currentDeck)
+                .then(() => {
+                    console.log("Deck saved successfully:", currentDeck.name);
+                })
+                .catch(error => {
+                    console.error("Error saving deck:", error);
+                    showErrorMessage("Error syncing with cloud. Saved locally.");
+                });
+            
+            console.log("Saved deck:", currentDeck.name, "with", currentDeck.cards.length, "cards");
+        }
+
+        // Function to save the current card data
+        function saveCurrentCard() {
+            const frontSide = document.querySelector('#frontText').value;
+            const backSide = document.querySelector('#backText').value;
+            
+            if (frontSide.trim() === '' || backSide.trim() === '') {
+                showErrorMessage('Please fill in both sides of the card');
+                return false;
+            }
+            
+            // Mevcut kartı düzenliyorsak
+            if (currentCard <= currentDeck.cards.length) {
+                // Mevcut kartı güncelle
+                currentDeck.cards[currentCard - 1] = {
+                    id: currentDeck.cards[currentCard - 1]?.id || 'card-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+                    front: frontSide,
+                    back: backSide,
+                    createdAt: currentDeck.cards[currentCard - 1]?.createdAt || new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            } else {
+                // Yeni kart ekle
+                currentDeck.cards.push({
+                    id: 'card-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+                    front: frontSide,
+                    back: backSide,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+                
+                // Toplam kart sayısını güncelle
+                totalCards = currentDeck.cards.length;
+            }
+            
+            // Her kart ekleme/değiştirme sonrası kaydet
+            saveDeckToStorage();
+            
+            return true;
+        }
+
+        // Function to add a new card (always adds to the end)
+        function addNewCard() {
+            // Mevcut kartı kaydet (eğer boş değilse)
+            saveCurrentCardIfNotEmpty();
+            
+            // Yeni kart için giriş alanlarını temizle
+            document.querySelector('#frontText').value = '';
+            document.querySelector('#backText').value = '';
+            
+            // Mevcut kartı yeni pozisyona ayarla (deste sonuna + 1)
+            currentCard = totalCards + 1;
+            updateCardCounter();
+            updateNavigationButtons();
+            
+            // Başarı mesajı göster
+            showSuccessMessage('Ready to add a new card');
+            
+            // Odağı ön yüz alanına getir
+            setTimeout(() => {
+                document.querySelector('#frontText').focus();
+            }, 100);
+        }
+
+        // Function to finish deck and go to home page
+        function finishDeck() {
+            // Mevcut kartı kaydet (eğer içeriği varsa)
+            const frontSide = document.querySelector('#frontText').value;
+            const backSide = document.querySelector('#backText').value;
+            
+            if (frontSide.trim() !== '' && backSide.trim() !== '') {
+                if (!saveCurrentCard()) {
+                    return; // Kart kaydedilemediyse dur
+                }
+            }
+            
+            // Destenin en az bir kartı olduğunu doğrula
+            if (currentDeck.cards.length === 0) {
+                showErrorMessage('Please add at least one card to the deck');
+                return;
+            }
+            
+            // Destenin son halini kaydet
+            saveDeckToStorage();
+            
+            // Başarı mesajı göster ve yönlendir
+            showSuccessMessage(`Deck "${currentDeck.name}" with ${currentDeck.cards.length} cards has been saved!`);
+            setTimeout(() => {
+                goToPage('my-decks.html');
+            }, 1500); // Başarı mesajını görmek için gecikme
+        }
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="firebase-auth.js"></script>
+    <script src="account-management.js"></script>
+    <script src="firebase-decks.js"></script>
+    <script>
+        function toggleAccountDropdown() {
+            const dropdown = document.getElementById('accountDropdown');
+            dropdown.classList.toggle('active');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const accountMenu = document.querySelector('.account-menu');
+            const dropdown = document.getElementById('accountDropdown');
+            
+            if (accountMenu && dropdown && !accountMenu.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        // Update account display
+        function updateAccountDisplay() {
+            checkAuthState().then(userData => {
+                if (userData) {
+                    document.getElementById('accountName').textContent = userData.displayName || userData.email.split('@')[0];
+                    document.getElementById('accountEmail').textContent = userData.email;
+                    document.getElementById('accountAvatar').textContent = (userData.displayName || userData.email)[0].toUpperCase();
+                } else {
+                    document.getElementById('accountName').textContent = 'Guest';
+                    document.getElementById('accountEmail').textContent = 'Not logged in';
+                    document.getElementById('accountAvatar').textContent = '?';
+                }
+            });
+        }
+
+        // Initialize account display
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAccountDisplay();
+        });
+
+        // Logout function
+        function handleLogout() {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                firebase.auth().signOut()
+                    .then(() => {
+                        console.log('User signed out from Firebase');
+                        localStorage.removeItem('memo-current-user');
+                        sessionStorage.removeItem('memo-current-user');
+                        window.location.href = 'index.html';
+                    })
+                    .catch((error) => {
+                        console.error('Error signing out:', error);
+                        localStorage.removeItem('memo-current-user');
+                        sessionStorage.removeItem('memo-current-user');
+                        window.location.href = 'index.html';
+                    });
+            } else {
+                localStorage.removeItem('memo-current-user');
+                sessionStorage.removeItem('memo-current-user');
+                window.location.href = 'index.html';
+            }
+        }
+    </script>
+    
+</body>
+</html>
